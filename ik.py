@@ -8,7 +8,7 @@ import pybullet as p
 import pybullet_data
 
 # for geometry information
-from utils.bullet_utils import draw_coordinate, get_matrix_from_pose, get_pose_from_matrix
+from utils.bullet_utils import draw_coordinate, get_matrix_from_pose, get_pose_from_matrix, pose_6d_to_7d, pose_7d_to_6d
 
 # you may use your forward kinematic algorithm to compute 
 from fk import your_fk, get_panda_DH_params
@@ -33,7 +33,7 @@ def pybullet_ik(robot, new_pose : list or tuple or np.ndarray,
     return joint_poses
 
 def your_ik(robot, new_pose : list or tuple or np.ndarray, 
-                max_iters : int=1000, stop_thresh : float=.001):
+                max_iters : int=2000, stop_thresh : float=.001):
 
     # you may use this params to avoid joint limit
     joint_limits = np.asarray([
@@ -64,6 +64,38 @@ def your_ik(robot, new_pose : list or tuple or np.ndarray,
 
     # TODO: update tmp_q
     # tmp_q = ? # may be more than one line
+    new_pose_matrix = get_matrix_from_pose(new_pose)
+    prev_err = 0
+    step_size = 0.1
+    for i in range(max_iters):
+        tmp_pose, jacobian = your_fk(robot, get_panda_DH_params(), tmp_q)
+        tmp_pose_matrix = get_matrix_from_pose(tmp_pose)
+
+        delta_matrix = new_pose_matrix @ np.linalg.inv(tmp_pose_matrix)
+        delta_x = get_pose_from_matrix(delta_matrix, 6)
+
+        delta_pose = pose_6d_to_7d(delta_x)
+        err = np.linalg.norm(delta_pose)
+            
+        if err < stop_thresh:
+            break
+        
+        if prev_err != 0 and prev_err > err:
+            step_size *= err/prev_err     
+               
+        J_inverse = np.linalg.inv(jacobian @ jacobian.T)
+        J_sharp = jacobian.T @ J_inverse
+        delta_q = J_sharp @ delta_x
+        tmp_q += 0.006*delta_q
+
+        for i in range(len(tmp_q)):
+            if tmp_q[i] < joint_limits[i][0]:
+                tmp_q[i] = joint_limits[i][0]
+
+            if tmp_q[i] > joint_limits[i][1]:
+                tmp_q[i] = joint_limits[i][1]
+
+
 
     # hint : 
     # 1. You may use `your_fk` function and jacobian matrix to do this

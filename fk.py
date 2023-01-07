@@ -63,6 +63,36 @@ def your_fk(robot, DH_params : dict, q : list or tuple or np.ndarray) -> np.ndar
 
     # A = ? # may be more than one line
     # jacobian = ? # may be more than one line
+    for i in range(7):
+        theta = q[i]
+        a = DH_params[i]['a']
+        d = DH_params[i]['d']
+        alpha = DH_params[i]['alpha']
+        T_i = np.array([[np.cos(theta), -np.sin(theta), 0, a],
+                        [np.sin(theta)*np.cos(alpha), np.cos(theta)*np.cos(alpha), -np.sin(alpha), -d*np.sin(alpha)],
+                        [np.sin(theta)*np.sin(alpha), np.cos(theta)*np.sin(alpha), np.cos(alpha), d*np.cos(alpha)],
+                        [0, 0, 0, 1]])
+        A = A @ T_i
+
+    T_0_i = get_matrix_from_pose(base_pose)
+    point_end = A[0:3, 3]
+    for i in range(7):
+        theta = q[i]
+        a = DH_params[i]['a']
+        d = DH_params[i]['d']
+        alpha = DH_params[i]['alpha']
+        T_i = [[np.cos(theta), -np.sin(theta), 0, a],
+                [np.sin(theta)*np.cos(alpha), np.cos(theta)*np.cos(alpha), -np.sin(alpha), -d*np.sin(alpha)],
+                [np.sin(theta)*np.sin(alpha), np.cos(theta)*np.sin(alpha), np.cos(alpha), d*np.cos(alpha)],
+                [0, 0, 0, 1]]
+
+        T_0_i = T_0_i @ T_i
+
+        z_i = T_0_i[0:3, 2]
+        p_i = T_0_i[0:3, 3]
+        r = point_end - p_i
+        jacobian[0:3, i] = np.cross(z_i, r)
+        jacobian[3:6, i] = z_i
 
     # -45 degree adjustment along z axis
     # details : see "pybullet_robot_envs/panda_envs/robot_data/franka_panda/panda_model.urdf"
